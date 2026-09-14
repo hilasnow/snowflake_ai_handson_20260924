@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# エディタ
+.vscode/
+.idea/
+
+# 一時ファイル
+*.tmp
+*.bak
+*.bak[0-9].md
+*.bak_*
+
+# 商品スペックシートPDFの元テキスト(Markdownドラフト)
+data/pdf/drafts/
