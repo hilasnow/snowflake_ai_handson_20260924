@@ -7,27 +7,24 @@
 --   「どんな写真が売上に貢献するか」を CoWork で分析する。
 --
 -- この setup.sql で Part 1・Part 2 すべての環境を作成します。
--- =============================================================
--- ⚠️ ワークスペース名は以下に設定してください
---    (Step 3 の COPY FILES の引数になっているため)
---
---    ワークスペース名: snowflake_ai_handson_2026
+-- データ(CSV・JSON・画像・PDF)は GitHub の公開リポジトリから自動取得します。
+-- ローカルへのダウンロードやファイルの手動アップロードは不要です。
 -- =============================================================
 --
--- 【実行前に必ず以下の事前準備を完了してください】
+-- ⚠️ このファイルは直接貼り付けなくてOKです。
+-- 参加者は代わりに load.sql(数行)だけを Snowsight のワークシートに
+-- 貼り付けて実行してください。load.sql が Git 連携を設定し、
+-- この setup.sql を自動取得・自動実行します。
 --
--- [1] GitHub からファイルをダウンロード
---     https://github.com/hilasnow/snowflake_ai_handson_2026
---     「Code」>「Download ZIP」で一括ダウンロードして展開
---
--- [2] Snowsight でワークスペースを新規作成
---     ワークスペース名は必ず「snowflake_ai_handson_2026」にしてください
---     (別の名前にすると Step 3 の COPY FILES が失敗します)
---
--- [3] ワークスペースの「+ 新規追加」>「ファイルをアップロード」で
---     展開した ZIP 内の全ファイル(ノートブック・SQL・data/ フォルダ)をアップロード
---
--- [4] この setup.sql を開いて全体を選択し一括実行
+-- 【Notebook の開き方】
+-- Part 1・Part 2 の Notebook はこの setup.sql では作成しません。
+-- Snowsight 左メニュー → Projects → Notebooks → 右上「+ Notebook」
+--   →「Import from Repository」を選択し、以下を指定してインポートしてください。
+--     Repository: AI_HANDSON_GIT_REPO(AI_HANDSON_GIT_DB.GIT スキーマ配下)
+--     Branch    : main
+--     Path      : part1_snowflake_basics_ai.ipynb / part2_cowork.ipynb
+-- =============================================================
+-- 参照リポジトリ: https://github.com/hilasnow/snowflake_ai_handson_20260924
 -- =============================================================
 
 -- -----------------------------------------------
@@ -71,29 +68,33 @@ CREATE OR REPLACE STAGE POST_IMAGES
     COMMENT    = 'SNS 投稿画像用ステージ';
 
 -- -----------------------------------------------
--- Step 3. ワークスペースからステージへファイルをコピー
+-- Step 3. Git リポジトリからステージへファイルをコピー
 --
--- ワークスペース上の data/ 配下のファイルを各ステージへ転送します。
--- ローカルからの PUT は不要です。
+-- Git連携(API INTEGRATION・GIT REPOSITORY)は load.sql で
+-- AI_HANDSON_GIT_DB.GIT スキーマに作成済みです。ここでは
+-- そのリポジトリからCSV・PDF・JSON・画像を取得するだけです。
 -- -----------------------------------------------
--- CSV(4ファイル)
+-- 最新コミットを取得(load.sql 実行後に更新があった場合の保険)
+ALTER GIT REPOSITORY AI_HANDSON_GIT_DB.GIT.ai_handson_git_repo FETCH;
+
+-- CSV(6ファイル)
 COPY FILES INTO @DATA_STAGE
-FROM 'snow://workspace/USER$.PUBLIC."snowflake_ai_handson_2026"/versions/live/'
+FROM @AI_HANDSON_GIT_DB.GIT.ai_handson_git_repo/branches/main/
 PATTERN = 'data/csv/.*[.]csv';
 
 -- 商品スペックシート PDF(5商品分、作成済み)
 COPY FILES INTO @DATA_STAGE
-FROM 'snow://workspace/USER$.PUBLIC."snowflake_ai_handson_2026"/versions/live/'
+FROM @AI_HANDSON_GIT_DB.GIT.ai_handson_git_repo/branches/main/
 PATTERN = 'data/pdf/.*[.]pdf';
 
 -- SNS 投稿サンプルデータ(Part 1 の AI 関数デモ用、265件)
 COPY FILES INTO @DATA_STAGE
-FROM 'snow://workspace/USER$.PUBLIC."snowflake_ai_handson_2026"/versions/live/'
+FROM @AI_HANDSON_GIT_DB.GIT.ai_handson_git_repo/branches/main/
 PATTERN = 'data/json/.*[.]json';
 
 -- 投稿画像(53枚)
 COPY FILES INTO @POST_IMAGES
-FROM 'snow://workspace/USER$.PUBLIC."snowflake_ai_handson_2026"/versions/live/'
+FROM @AI_HANDSON_GIT_DB.GIT.ai_handson_git_repo/branches/main/
 PATTERN = 'data/images/.*[.]jpg';
 
 -- DIRECTORY テーブルを更新(ファイル一覧を反映)
@@ -265,7 +266,9 @@ SET image_path = REPLACE(image_path, 'posts/', '');
 --   sns_mentions         = 265 件
 --   dim_products         = 576 件
 --   supplier_products_v2 = 100 件
--- 件数が 0 の場合は Step 3 の COPY FILES(ワークスペース名)を確認してください。
+-- 件数が 0 の場合は load.sql での Git 連携設定(リポジトリURL・
+-- API_ALLOWED_PREFIXES 等)と、Step 3 の FETCH・COPY FILES が
+-- 正常に実行されたかを確認してください。
 -- -----------------------------------------------
 SELECT 'products'             AS table_name, COUNT(*) AS row_count, 5   AS expected_count FROM products             UNION ALL
 SELECT 'posts'                AS table_name, COUNT(*) AS row_count, 53  AS expected_count FROM posts                UNION ALL

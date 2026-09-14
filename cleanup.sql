@@ -26,3 +26,10 @@ DROP SEMANTIC VIEW IF EXISTS AI_HANDSON_DB.ANALYTICS.SV_STEP2;
 -- -----------------------------------------------
 DROP DATABASE IF EXISTS AI_HANDSON_DB;
 DROP WAREHOUSE IF EXISTS AI_HANDSON_WH;
+
+-- -----------------------------------------------
+-- Git連携オブジェクト(load.sqlで作成。他のハンズオンでも使い回す場合は
+-- コメントアウトのまま残す。DROPすると次回は load.sql が作り直します)
+-- -----------------------------------------------
+-- DROP DATABASE IF EXISTS AI_HANDSON_GIT_DB;
+-- DROP API INTEGRATION IF EXISTS ai_handson_git_integration;
