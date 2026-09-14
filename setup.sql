@@ -1,29 +1,5 @@
 -- =============================================================
--- setup.sql - ハンズオン共通 事前セットアップ(Part 1・Part 2)
---
--- シナリオ: インフルエンサー投稿画像 × 売上効果分析
---   旅行グッズブランドのマーケ担当が、インフルエンサー施策の効果を分析する。
---   SNS投稿画像を AI で構造化し、売上データと掛け合わせて
---   「どんな写真が売上に貢献するか」を CoWork で分析する。
---
--- この setup.sql で Part 1・Part 2 すべての環境を作成します。
--- データ(CSV・JSON・画像・PDF)は GitHub の公開リポジトリから自動取得します。
--- ローカルへのダウンロードやファイルの手動アップロードは不要です。
--- =============================================================
---
--- ⚠️ このファイルは直接貼り付けなくてOKです。
--- 参加者は代わりに load.sql(数行)だけを Snowsight のワークシートに
--- 貼り付けて実行してください。load.sql が Git 連携を設定し、
--- この setup.sql を自動取得・自動実行します。
---
--- 【Notebook の開き方】
--- Part 1・Part 2 の Notebook はこの setup.sql では作成しません。
--- Snowsight 左メニュー → Projects → Notebooks → 右上「+ Notebook」
---   →「Import from Repository」を選択し、以下を指定してインポートしてください。
---     Repository: AI_HANDSON_GIT_REPO(AI_HANDSON_GIT_DB.GIT スキーマ配下)
---     Branch    : main
---     Path      : part1_snowflake_basics_ai.ipynb / part2_cowork.ipynb
--- =============================================================
+-- setup.sql - ハンズオン共通 事前セットアップ
 -- 参照リポジトリ: https://github.com/hilasnow/snowflake_ai_handson_20260924
 -- =============================================================
 
@@ -32,7 +8,6 @@
 -- -----------------------------------------------
 USE ROLE ACCOUNTADMIN;
 
--- AI 関数で利用するモデルがリージョンに無い場合に他リージョンへルーティングする
 ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
 
 CREATE WAREHOUSE IF NOT EXISTS AI_HANDSON_WH
@@ -50,8 +25,6 @@ USE WAREHOUSE AI_HANDSON_WH;
 -- ステージは用途別に2つ作成します。
 --   DATA_STAGE  : CSV・PDF 用
 --   POST_IMAGES : 投稿画像用
--- 画像・PDF を AI 関数(TO_FILE)から読むため、
--- DIRECTORY 有効化 + SNOWFLAKE_SSE 暗号化が必要です。
 -- -----------------------------------------------
 CREATE OR REPLACE DATABASE AI_HANDSON_DB;
 CREATE OR REPLACE SCHEMA AI_HANDSON_DB.ANALYTICS;
@@ -74,8 +47,6 @@ CREATE OR REPLACE STAGE POST_IMAGES
 -- AI_HANDSON_GIT_DB.GIT スキーマに作成済みです。ここでは
 -- そのリポジトリからCSV・PDF・JSON・画像を取得するだけです。
 -- -----------------------------------------------
--- 最新コミットを取得(load.sql 実行後に更新があった場合の保険)
-ALTER GIT REPOSITORY AI_HANDSON_GIT_DB.GIT.ai_handson_git_repo FETCH;
 
 -- CSV(6ファイル)
 COPY FILES INTO @DATA_STAGE
@@ -118,7 +89,6 @@ CREATE OR REPLACE FILE FORMAT json_format
 --
 -- ER 関係:
 --   posts (N) --- (1) products (1) --- (N) daily_sales
---   posts (1) --- (1) image_features   ※ Part 1 ノートブックで作成
 -- -----------------------------------------------
 
 -- 商品マスタ(5件)
@@ -139,7 +109,7 @@ CREATE OR REPLACE TABLE posts (
     posted_at  TIMESTAMP               COMMENT '投稿日時',
     likes      NUMBER                  COMMENT 'いいね数',
     comments   NUMBER                  COMMENT 'コメント数',
-    image_path VARCHAR(100)            COMMENT '投稿画像のファイル名(image_features との結合キー)'
+    image_path VARCHAR(100)            COMMENT '投稿画像のファイル名'
 )
 COMMENT = 'インフルエンサーの SNS 投稿メタデータ';
 
@@ -153,8 +123,7 @@ CREATE OR REPLACE TABLE daily_sales (
 COMMENT = '商品ごとの日別売上データ';
 
 -- SNS 投稿(265件) ※ Part 1 の AI 関数デモ専用のサンプルデータ
---   Part 2 のインフルエンサー分析とは別シナリオ(EC サイトの SNS メンション)です。
---   AI_EXTRACT / AI_CLASSIFY の動作をテキストデータで体験するために用意しています。
+--   AI_EXTRACT / AI_CLASSIFY のサンプルデータ。
 CREATE OR REPLACE TABLE sns_mentions (
     post_id      VARCHAR(30) PRIMARY KEY COMMENT '投稿ID',
     platform     VARCHAR(20)             COMMENT 'プラットフォーム(instagram/twitter など)',
@@ -170,8 +139,7 @@ CREATE OR REPLACE TABLE sns_mentions (
 )
 COMMENT = 'Part 1 AI 関数デモ用の SNS 投稿サンプルデータ';
 
--- 商品マスタ(576件) ※ Part 1 の AI_SIMILARITY(名寄せ)デモ専用の別シナリオのサンプルデータです。
---   旅行グッズブランド(products テーブル)とは無関係の汎用EC商品カタログです。
+-- 商品マスタ(576件) ※ Part 1 の AI_SIMILARITY(名寄せ)デモ専用の別シナリオのサンプルデータ。
 CREATE OR REPLACE TABLE dim_products (
     product_id      VARCHAR PRIMARY KEY COMMENT '商品ID',
     product_name    VARCHAR             COMMENT '商品名',
@@ -247,24 +215,13 @@ SET p.product_id = m.product_id
 FROM image_product_map m
 WHERE REPLACE(p.image_path, 'posts/', '') = m.image_file;
 
--- image_path を「ファイル名のみ」に正規化する
---   CSV上は 'posts/post_001.jpg' だが、image_features.image_file は 'post_001.jpg'。
---   Semantic View の RELATIONSHIP で両者を直接結合するため、ここで揃えておく。
---   (正規化しないと posts と image_features が結合できず、画像特徴量を絡めた質問に答えられない)
+-- image_path を「ファイル名のみ」に正規化する(例: 'posts/post_001.jpg' → 'post_001.jpg')
+--   後続ノートブックで画像データと結合しやすくするため揃えておく
 UPDATE posts
 SET image_path = REPLACE(image_path, 'posts/', '');
 
 -- -----------------------------------------------
 -- Step 7. セットアップ確認
---
--- ※ image_features は Part 1 ノートブックの AI_COMPLETE セクションで作成します。
---
--- Run All で一括実行した場合、Snowsight は最後の1文の結果しか表示しません。
--- そのため確認クエリは1つにまとめています(RESULT列 = EXPECTED列であればOK)。
---
--- 件数が0や期待値と異なる場合は load.sql での Git 連携設定(リポジトリURL・
--- API_ALLOWED_PREFIXES 等)と、Step 3 の FETCH・COPY FILES が
--- 正常に実行されたかを確認してください。
 -- -----------------------------------------------
 SELECT 'products'               AS check_item, COUNT(*)::VARCHAR                    AS result, '5'   AS expected FROM products             UNION ALL
 SELECT 'posts'                  AS check_item, COUNT(*)::VARCHAR                    AS result, '53'  AS expected FROM posts                UNION ALL
@@ -277,8 +234,7 @@ SELECT 'stage:POST_IMAGES(jpg)' AS check_item, COUNT(*)::VARCHAR                
 SELECT 'stage:DATA_STAGE(all)'  AS check_item, COUNT(*)::VARCHAR                    AS result, '12'  AS expected FROM DIRECTORY(@DATA_STAGE)
 ORDER BY check_item;
 
--- ※ posts と image_features の結合確認は Part 1 ノートブックで image_features 作成後に行います
-
 -- =============================================================
+
 -- クリーンアップはハンズオン終了後に cleanup.sql を実行してください
 -- =============================================================
