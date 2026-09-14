@@ -259,37 +259,25 @@ SET image_path = REPLACE(image_path, 'posts/', '');
 --
 -- ※ image_features は Part 1 ノートブックの AI_COMPLETE セクションで作成します。
 --
--- 期待値:
---   products             = 5 件
---   posts                = 53 件
---   daily_sales          = 305 件
---   sns_mentions         = 265 件
---   dim_products         = 576 件
---   supplier_products_v2 = 100 件
--- 件数が 0 の場合は load.sql での Git 連携設定(リポジトリURL・
+-- Run All で一括実行した場合、Snowsight は最後の1文の結果しか表示しません。
+-- そのため確認クエリは1つにまとめています(RESULT列 = EXPECTED列であればOK)。
+--
+-- 件数が0や期待値と異なる場合は load.sql での Git 連携設定(リポジトリURL・
 -- API_ALLOWED_PREFIXES 等)と、Step 3 の FETCH・COPY FILES が
 -- 正常に実行されたかを確認してください。
 -- -----------------------------------------------
-SELECT 'products'             AS table_name, COUNT(*) AS row_count, 5   AS expected_count FROM products             UNION ALL
-SELECT 'posts'                AS table_name, COUNT(*) AS row_count, 53  AS expected_count FROM posts                UNION ALL
-SELECT 'daily_sales'          AS table_name, COUNT(*) AS row_count, 305 AS expected_count FROM daily_sales          UNION ALL
-SELECT 'sns_mentions'         AS table_name, COUNT(*) AS row_count, 265 AS expected_count FROM sns_mentions         UNION ALL
-SELECT 'dim_products'         AS table_name, COUNT(*) AS row_count, 576 AS expected_count FROM dim_products         UNION ALL
-SELECT 'supplier_products_v2' AS table_name, COUNT(*) AS row_count, 100 AS expected_count FROM supplier_products_v2
-ORDER BY table_name;
-
--- posts.product_id が全件埋まっていることを確認(null_product_id が 0 であること)
-SELECT
-    COUNT(*)                                          AS total_posts,
-    COUNT(product_id)                                 AS filled_product_id,
-    COUNT(*) - COUNT(product_id)                      AS null_product_id
-FROM posts;
+SELECT 'products'               AS check_item, COUNT(*)::VARCHAR                    AS result, '5'   AS expected FROM products             UNION ALL
+SELECT 'posts'                  AS check_item, COUNT(*)::VARCHAR                    AS result, '53'  AS expected FROM posts                UNION ALL
+SELECT 'daily_sales'            AS check_item, COUNT(*)::VARCHAR                    AS result, '305' AS expected FROM daily_sales          UNION ALL
+SELECT 'sns_mentions'           AS check_item, COUNT(*)::VARCHAR                    AS result, '265' AS expected FROM sns_mentions         UNION ALL
+SELECT 'dim_products'           AS check_item, COUNT(*)::VARCHAR                    AS result, '576' AS expected FROM dim_products         UNION ALL
+SELECT 'supplier_products_v2'   AS check_item, COUNT(*)::VARCHAR                    AS result, '100' AS expected FROM supplier_products_v2 UNION ALL
+SELECT 'posts.null_product_id' AS check_item, (COUNT(*) - COUNT(product_id))::VARCHAR AS result, '0' AS expected FROM posts                UNION ALL
+SELECT 'stage:POST_IMAGES(jpg)' AS check_item, COUNT(*)::VARCHAR                    AS result, '53'  AS expected FROM DIRECTORY(@POST_IMAGES) UNION ALL
+SELECT 'stage:DATA_STAGE(all)'  AS check_item, COUNT(*)::VARCHAR                    AS result, '12'  AS expected FROM DIRECTORY(@DATA_STAGE)
+ORDER BY check_item;
 
 -- ※ posts と image_features の結合確認は Part 1 ノートブックで image_features 作成後に行います
-
--- ステージ上のファイル数を確認(画像53枚、PDF は作成後に5件)
-SELECT 'POST_IMAGES(jpg)' AS stage_name, COUNT(*) AS file_count FROM DIRECTORY(@POST_IMAGES) UNION ALL
-SELECT 'DATA_STAGE(all)'  AS stage_name, COUNT(*) AS file_count FROM DIRECTORY(@DATA_STAGE);
 
 -- =============================================================
 -- クリーンアップはハンズオン終了後に cleanup.sql を実行してください
