@@ -15,5 +15,3 @@ CREATE OR REPLACE GIT REPOSITORY ai_handson_git_repo
     ORIGIN           = 'https://github.com/hilasnow/snowflake_ai_handson_20260924.git';
 
 ALTER GIT REPOSITORY ai_handson_git_repo FETCH;
-
-EXECUTE IMMEDIATE FROM @ai_handson_git_repo/branches/main/setup.sql;
